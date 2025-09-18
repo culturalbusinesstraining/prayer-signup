@@ -1,130 +1,135 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Relógio de Oração</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Relógio de Oração — Público</title>
 <style>
-body { font-family: Arial, sans-serif; margin: 40px; }
-.form-container, .signers-container {
-  max-width: 500px; margin-bottom: 30px; padding: 20px;
-  border: 1px solid #ddd; border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-.signers-container ul { list-style-type: none; padding: 0; }
-.signers-container li {
-  background: #f9f9f9; margin: 5px 0; padding: 8px; border-radius: 6px;
-}
-h4 { margin-top: 20px; margin-bottom: 5px; color: #444; }
+  body{font-family:Arial, sans-serif;margin:24px;}
+  .form-container,.signers-container{max-width:720px;padding:18px;margin-bottom:18px;border-radius:8px;border:1px solid #ddd;}
+  .signers-container ul{list-style:none;padding:0;margin:0;}
+  .signers-container li{background:#f8f8f8;margin:6px 0;padding:8px;border-radius:6px;}
+  h3,h4{margin:8px 0;}
+  .muted{color:#666;font-style:italic}
 </style>
 </head>
 <body>
 
 <div class="form-container">
-<h2>Relógio de Oração (Semanal)</h2>
-<form id="signupForm">
-<label for="firstName">Nome:</label><br>
-<input type="text" id="firstName" required><br><br>
+  <h2>Relógio de Oração (Semanal)</h2>
+  <form id="signupForm">
+    <label>Nome:</label><br>
+    <input id="firstName" required autocomplete="name"><br><br>
 
-<label for="day">Escolha o dia:</label><br>
-<select id="day" required>
-  <option value="">--Selecione o dia--</option>
-  <option>Segunda-feira</option>
-  <option>Terça-feira</option>
-  <option>Quarta-feira</option>
-  <option>Quinta-feira</option>
-  <option>Sexta-feira</option>
-  <option>Sábado</option>
-  <option>Domingo</option>
-</select><br><br>
+    <label>Escolha o dia:</label><br>
+    <select id="day" required>
+      <option value="">--Selecione o dia--</option>
+      <option>Segunda-feira</option><option>Terça-feira</option><option>Quarta-feira</option>
+      <option>Quinta-feira</option><option>Sexta-feira</option><option>Sábado</option><option>Domingo</option>
+    </select><br><br>
 
-<label for="time">Escolha o horário:</label><br>
-<input type="time" id="time" required><br><br>
+    <label>Horário:</label><br>
+    <input id="time" type="time" required><br><br>
 
-<button type="submit">Cadastrar</button>
-</form>
+    <button type="submit">Cadastrar</button>
+  </form>
+  <div id="status" class="muted" style="margin-top:10px;"></div>
 </div>
 
 <div class="signers-container">
-<h3>Inscritos desta Semana</h3>
-<div id="signersList"></div>
+  <h3>Inscritos desta Semana</h3>
+  <div id="signersList"></div>
 </div>
 
-<script>
-let signersData = JSON.parse(localStorage.getItem("signers")) || {};
-function getWeekKey() {
-  const today = new Date();
-  const startOfYear = new Date(today.getFullYear(),0,1);
-  const dayOfYear = Math.floor((today - startOfYear)/86400000) + 1;
-  const weekNumber = Math.floor((dayOfYear - 1)/7) + 1;
-  return `week-${today.getFullYear()}-${weekNumber}`;
-}
-function initWeek() {
-  const weekKey = getWeekKey();
-  if (!signersData[weekKey]) {
-    signersData[weekKey] = [];
-    localStorage.setItem("signers", JSON.stringify(signersData));
+<!-- Firebase SDK (v9, modular) -->
+<script type="module">
+  // 1) Paste your firebaseConfig object here
+  const firebaseConfig = {
+    apiKey: "AIzaSyB_jowITC9Gi-AcVeFJmk2jMF4QgBBx5JM",
+  authDomain: "prayersignup-cd8fd.firebaseapp.com",
+  databaseURL: "https://prayersignup-cd8fd-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "prayersignup-cd8fd",
+  storageBucket: "prayersignup-cd8fd.firebasestorage.app",
+  messagingSenderId: "7306026080",
+  appId: "1:7306026080:web:c5adcf2ed203e57d6bf705",
+  measurementId: "G-YXDNN7CLSD"
+  };
+
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const diasSemana = ["Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado","Domingo"];
+  const signersListEl = document.getElementById('signersList');
+  const statusEl = document.getElementById('status');
+
+  function getWeekKey() {
+    const today = new Date();
+    const startOfYear = new Date(today.getFullYear(),0,1);
+    const dayOfYear = Math.floor((today - startOfYear)/86400000) + 1;
+    const weekNumber = Math.floor((dayOfYear - 1)/7) + 1;
+    return `week-${today.getFullYear()}-${weekNumber}`;
   }
-}
-const diasSemana = ["Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado","Domingo"];
-function loadSigners() {
-  initWeek();
-  const weekKey = getWeekKey();
-  const weekSigners = signersData[weekKey];
-  const grouped = {};
-  diasSemana.forEach(d => grouped[d] = []);
-  weekSigners.forEach(s => grouped[s.dia].push(s));
-  diasSemana.forEach(d => grouped[d].sort((a,b)=>a.horario.localeCompare(b.horario)));
-  const container = document.getElementById("signersList");
-  container.innerHTML = "";
-  diasSemana.forEach(d => {
-    const h4 = document.createElement("h4");
-    h4.textContent = d;
-    container.appendChild(h4);
-    const ul = document.createElement("ul");
-    if(grouped[d].length > 0){
-      grouped[d].forEach(s => {
-        const li = document.createElement("li");
-        li.textContent = `${s.horario} → ${s.nome}`;
+
+  function renderList(entries) {
+    const grouped = {};
+    diasSemana.forEach(d => grouped[d]=[]);
+    entries.forEach(e => { if(e.dia && grouped[e.dia]) grouped[e.dia].push(e); });
+    diasSemana.forEach(d => grouped[d].sort((a,b)=> (a.horario||'').localeCompare(b.horario||'')));
+    signersListEl.innerHTML = '';
+    diasSemana.forEach(d => {
+      const h4 = document.createElement('h4');
+      h4.textContent = d;
+      signersListEl.appendChild(h4);
+      const ul = document.createElement('ul');
+      if(grouped[d].length){
+        grouped[d].forEach(it => {
+          const li = document.createElement('li');
+          li.textContent = `${it.horario} → ${it.nome}`;
+          ul.appendChild(li);
+        });
+      } else {
+        const li = document.createElement('li');
+        li.textContent = 'Nenhum inscrito ainda';
+        li.className = 'muted';
         ul.appendChild(li);
-      });
-    } else {
-      const li = document.createElement("li");
-      li.textContent = "Nenhum inscrito ainda";
-      li.style.fontStyle = "italic";
-      li.style.color = "#888";
-      ul.appendChild(li);
-    }
-    container.appendChild(ul);
-  });
-}
-function isSlotTaken(dia, horario){
-  const weekKey = getWeekKey();
-  return signersData[weekKey].some(s => s.dia === dia && s.horario === horario);
-}
-document.getElementById("signupForm").addEventListener("submit", function(e){
-  e.preventDefault();
-  const nome = document.getElementById("firstName").value.trim();
-  const dia = document.getElementById("day").value;
-  const horario = document.getElementById("time").value;
-  if(!nome || !dia || !horario) return;
-  if(isSlotTaken(dia, horario)){
-    alert("⚠️ Esse horário já foi reservado por outra pessoa! Escolha outro horário.");
-    return;
+      }
+      signersListEl.appendChild(ul);
+    });
   }
+
   const weekKey = getWeekKey();
-  signersData[weekKey].push({nome, dia, horario});
-  localStorage.setItem("signers", JSON.stringify(signersData));
-  loadSigners();
-  this.reset();
-});
-const lastWeekKey = localStorage.getItem("lastWeekKey");
-const currentWeekKey = getWeekKey();
-if(lastWeekKey !== currentWeekKey){
-  signersData[currentWeekKey] = [];
-  localStorage.setItem("signers", JSON.stringify(signersData));
-  localStorage.setItem("lastWeekKey", currentWeekKey);
-}
-loadSigners();
+  const weekRef = ref(db, `signers/${weekKey}`);
+
+  onValue(weekRef, (snapshot) => {
+    const val = snapshot.val() || {};
+    const arr = Object.keys(val).map(k => val[k]);
+    renderList(arr);
+    statusEl.textContent = `Conectado — ${arr.length} inscritos (semana ${weekKey}).`;
+  }, (err) => {
+    console.error(err);
+    statusEl.textContent = 'Erro de conexão ao banco.';
+  });
+
+  const form = document.getElementById('signupForm');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nome = document.getElementById('firstName').value.trim();
+    const dia = document.getElementById('day').value;
+    const horario = document.getElementById('time').value;
+    if(!nome || !dia || !horario) return;
+
+    try {
+      await push(weekRef, { nome, dia, horario, ts: Date.now() });
+      form.reset();
+      statusEl.textContent = 'Inscrição enviada.';
+    } catch(err){
+      console.error(err);
+      statusEl.textContent = 'Erro ao enviar. Tente novamente.';
+    }
+  });
 </script>
 
 </body>
